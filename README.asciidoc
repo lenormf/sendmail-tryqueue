@@ -1,0 +1,50 @@
+sendmail-tryqueue
+=================
+
+`sendmail-tryqueue` is a script that tries sending an email by reading it
+on the standard input and forwarding it to the standard input of a given
+_sendmail_ command. If the command fails, the email and command are stored
+on disk, in a "queue directory".
+
+Emails stored in such manner can subsequently be re-sent by the script,
+which makes it a good addition to a MUA's configuration.
+
+Dependencies
+------------
+
+- Python3
+
+Usage
+-----
+
+Similarly to a _sendmail_ command, `sendmail-tryqueue` reads an email on its
+standard input, and forwards it to the standard input of the _sendmail_ command
+it's passed as argument.
+
+But it's not intended to be a drop-in replacement with an additional
+side-effect, so it doesn't implement any of the flags generally implemented
+from the _sendmail_ API.
+
+Example:
+
+```
+# Try to send an email
+$ cat test.eml | sendmail-tryqueue send sendmail -- e@ma.il
+# List the emails that could not be sent, and were consequently queued
+$ sendmail-tryqueue list
+# Try to re-send the emails in the queue,
+# in the same order they were originally sent
+$ sendmail-tryqueue flush
+```
+
+Queues are stored in `${XDG_DATA_HOME}/sendmail-tryqueue/queues` by
+default.
+
+The emails are written as `.eml` files, and _sendmail_ commands as `.sh`
+scripts. Their name starts with a millisecond-based timestamp, contains
+the subject of the email, and is seeded with a random number in case the
+same email was being sent at the exact same time.
+
+A generic database was purposefully *not chosen* to handle storing and
+reading the queues to allow interacting with the data stored more easily
+(e.g. with UNIX tools).
