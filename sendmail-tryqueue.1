@@ -1,0 +1,125 @@
+.TH SENDMAIL-TRYQUEUE 1
+
+.SH NAME
+
+sendmail-tryqueue \- A generic utility that caches/queues emails that couldn't be sent
+
+.SH SYNOPSIS
+
+.PP
+.B sendmail-tryqueue
+[\fB\-h\fR] [\fB\-v\fR] [\fB\-d\fR] [\fB\-n\fR]
+[\fB\-D\fR \fIqueue_directory\fR]
+[\fB\-Q\fR \fIqueue_name\fR]
+\fIcommand\fR ...
+
+.SH DESCRIPTION
+
+sendmail-tryqueue tries sending an email by reading it on the standard input
+and forwarding it to the standard input of a given sendmail command. If
+the command fails, the email and command are stored on disk, in a "queue
+directory".
+
+.SH OPTIONS
+
+.TP
+.B \-h, \-\-help
+show this help message and exit
+
+.TP
+.B \-v, \-\-verbose
+display information messages
+
+.TP
+.B \-d, \-\-debug
+display debug messages
+
+.TP
+.B \-n, \-\-dry-run
+do not modify the database, only print commands that would otherwise have been run
+
+.TP
+.B \-D, \-\-queue\-directory \fIqueue_directory\fR
+path to the directory that stores queues, defaults to
+\fI$XDG_DATA_HOME/sendmail-tryqueue/queues\fR
+
+.TP
+.B \-Q, \-\-queue\-name \fIqueue_name\fR
+name of the default queue, defaults to \fIdefault\fR
+
+.SH COMMANDS
+
+.TP
+.B send \fIsendmail_command\fR
+forward the email to the given \fIsendmail_command\fR, queue if unsuccessful
+
+.TP
+.B list
+list all the emails stored in a queue
+
+.TP
+.B flush
+try to re-send all the emails stored in a queue, stopping on the first
+failure and unqueuing emails unsuccessfully re-sent
+
+.SH ENVIRONMENT
+
+.TP
+.BR XDG_DATA_HOME
+defaults to \fI~/.local/share\fR if undefined
+
+.SH FILES
+
+Queues are directories created in the queue directory, and contain two types
+of files, whose name have format \fI<ts>-<subject>-<seed>.<extension>\fR,
+with each token being defined as follows:
+
+.nf
+.RS
+- \fIts\fR: millisecond-based timestamp of the moment the email was first sent
+- \fIsubject\fR: subject of the email, with whitespace and slash characters
+  replaced with underscore characters
+- \fIseed\fR: a random four-digit number
+.RE
+.fi
+
+The file extensions indicate the nature of their contents:
+
+.TP
+.BR .eml
+email that was written on the standard input of \fBsendmail-tryqueue\fR,
+the file is created in mode 0600
+
+.TP
+.BR .sh
+command that was passed to \fBsendmail-tryqueue\fR, the file is created in
+mode 0700
+
+
+.SH RETURN VALUES
+
+Note that failing to send an email with the \fIsend\fR command is not
+treated as an error.
+
+.TP
+0
+no errors
+
+.TP
+1
+generic error
+
+.SH EXAMPLES
+
+.PP
+Try to send an email:
+
+.nf
+.RS
+cat test.eml | sendmail-tryqueue send sendmail -- e@ma.il
+.RE
+.fi
+
+.SH SEE ALSO
+
+\fBsendmail\fR(8)
