@@ -35,6 +35,26 @@ class SendmailTryQueueBase:
         self.queue_directory = queue_directory
         self.queue_name = queue_name
 
+        try:
+            self.queue_directory_max_path = os.pathconf(self.queue_directory,
+                                                        "PC_PATH_MAX")
+            self.queue_directory_name_len = os.pathconf(self.queue_directory,
+                                                        "PC_NAME_MAX")
+        except (OSError, ValueError) as e:
+            raise SendmailTryQueueError("unable to get filesystem path/name limits: %s" % e)
+
+        if len(self.queue_directory) > self.queue_directory_max_path:
+            raise SendmailTryQueueError("directory name too long, %d > %d" % (
+                len(self.queue_directory),
+                self.queue_directory_max_path,
+            ))
+
+        if len(self.queue_name) > self.queue_directory_name_len:
+            raise SendmailTryQueueError("queue name too long, %d > %d" % (
+                len(self.queue_name),
+                self.queue_directory_name_len,
+            ))
+
     def QueueEmail(self, time_sent, sendmail_command, email_message, callback):
         path_root = pathlib.Path(self.queue_directory)
 
@@ -55,10 +75,39 @@ class SendmailTryQueueBase:
         # are being queued at the exact same moment
         seed = int(random.uniform(1000, 9999))
 
-        path_root /= "{}-{}-{}".format(time_sent, email_subject, seed)
+        # Convert integers to strings to check their length
+        time_sent = str(time_sent)
+        seed = str(seed)
 
-        path_email_message = path_root.with_suffix(Defaults.EXT_EML)
-        path_shell_script = path_root.with_suffix(Defaults.EXT_SH)
+        def generate_filename(max_len, time, seed, subject, ext):
+            # NOTE: there are 3 separators in the final name
+            anchors_len = len(time) + len(seed) + len(ext) + 3
+            if anchors_len + len(subject) > max_len:
+                if anchors_len >= max_len:
+                    raise SendmailTryQueueError("cannot generate a suitable filename of size < %d" % max_len)
+
+                logging.info("name too long, cutting the email subject to make room: %d", len(email_subject))
+                subject = subject[:max_len - anchors_len]
+
+            return "{}-{}-{}.{}".format(time, subject, seed, ext)
+
+        path_email_message = generate_filename(
+                                 self.queue_directory_name_len,
+                                 time_sent, seed,
+                                 email_subject, Defaults.EXT_EML)
+        path_email_message = path_root / path_email_message
+        if len(str(path_email_message)) > self.queue_directory_max_path:
+            raise SendmailTryQueueError("cannot generate a suitable filepath of size < %d"
+                                        % self.queue_directory_max_path)
+
+        path_shell_script = generate_filename(
+                                 self.queue_directory_name_len,
+                                 time_sent, seed,
+                                 email_subject, Defaults.EXT_SH)
+        path_shell_script = path_root / path_shell_script
+        if len(str(path_shell_script)) > self.queue_directory_max_path:
+            raise SendmailTryQueueError("cannot generate a suitable filepath of size < %d"
+                                        % self.queue_directory_max_path)
 
         logging.debug("root directory: %s", self.queue_directory)
         logging.debug("queue storage directory: %s", path_root)
@@ -313,13 +362,13 @@ def main(av):
     if cli_options.dry_run:
         logging.info("dry-run mode enabled, the commands will not be executed, but printed instead")
 
-    sendmail_tryqueue = SendmailTryQueueDryRun if cli_options.dry_run else SendmailTryQueue
-    sendmail_tryqueue = sendmail_tryqueue(cli_options.queue_directory, cli_options.queue_name)
-
-    logging.debug("queue storage directory: %s", sendmail_tryqueue.queue_directory)
-    logging.debug("name of the queue to use: %s", sendmail_tryqueue.queue_name)
-
     try:
+        sendmail_tryqueue = SendmailTryQueueDryRun if cli_options.dry_run else SendmailTryQueue
+        sendmail_tryqueue = sendmail_tryqueue(cli_options.queue_directory, cli_options.queue_name)
+
+        logging.debug("queue storage directory: %s", sendmail_tryqueue.queue_directory)
+        logging.debug("name of the queue to use: %s", sendmail_tryqueue.queue_name)
+
         if cli_options.command == "send":
             logging.debug("reading the email message from the standard input")
 
