@@ -240,9 +240,9 @@ class SendmailTryQueue(SendmailTryQueueBase):
     def FlushQueue(self):
         def flush_queue(path_email_message, path_shell_script, idx_item, nb_items):
             if not os.path.exists(path_email_message):
-                raise SendmailTryQueueError("no such mail file: %s", path_email_message)
+                raise SendmailTryQueueError("no such mail file: %s" % path_email_message)
             elif not os.path.exists(path_shell_script):
-                raise SendmailTryQueueError("no such script file: %s", path_shell_script)
+                raise SendmailTryQueueError("no such script file: %s" % path_shell_script)
 
             try:
                 logging.debug("executing script: %s", path_shell_script)
