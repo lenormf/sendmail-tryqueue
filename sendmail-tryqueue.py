@@ -80,8 +80,8 @@ class SendmailTryQueueBase:
         seed = str(seed)
 
         def generate_filename(max_len, time, seed, subject, ext):
-            # NOTE: there are 3 separators in the final name
-            anchors_len = len(time) + len(seed) + len(ext) + 3
+            # NOTE: there are 2 separators in the final name
+            anchors_len = len(time) + len(seed) + len(ext) + 2
             if anchors_len + len(subject) > max_len:
                 if anchors_len >= max_len:
                     raise SendmailTryQueueError("cannot generate a suitable filename of size < %d" % max_len)
@@ -89,7 +89,7 @@ class SendmailTryQueueBase:
                 logging.info("name too long, cutting the email subject to make room: %d", len(email_subject))
                 subject = subject[:max_len - anchors_len]
 
-            return "{}-{}-{}.{}".format(time, subject, seed, ext)
+            return "{}-{}-{}{}".format(time, subject, seed, ext)
 
         path_email_message = generate_filename(
                                  self.queue_directory_name_len,
