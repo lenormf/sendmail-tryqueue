@@ -79,31 +79,41 @@ class SendmailTryQueueBase:
         time_sent = str(time_sent)
         seed = str(seed)
 
-        def generate_filename(max_len, time, seed, subject, ext):
+        def get_adjusted_length(max_len, time, seed, subject, ext):
             # NOTE: there are 2 separators in the final name
             anchors_len = len(time) + len(seed) + len(ext) + 2
             if anchors_len + len(subject) > max_len:
+                logging.info("name too long, cutting the email subject to make room: %d", len(subject))
+
                 if anchors_len >= max_len:
-                    raise SendmailTryQueueError("cannot generate a suitable filename of size < %d" % max_len)
+                    return None
 
-                logging.info("name too long, cutting the email subject to make room: %d", len(email_subject))
-                subject = subject[:max_len - anchors_len]
+                return max_len - anchors_len
 
-            return "{}-{}-{}{}".format(time, subject, seed, ext)
+            return len(subject)
 
-        path_email_message = generate_filename(
-                                 self.queue_directory_name_len,
-                                 time_sent, seed,
-                                 email_subject, Defaults.EXT_EML)
+        email_subject_length = get_adjusted_length(self.queue_directory_name_len, time_sent, seed,
+                                                   email_subject, Defaults.EXT_EML)
+        if email_subject_length is None:
+            raise SendmailTryQueueError("cannot generate a suitable filename of size < %d" % self.queue_directory_name_len)
+
+        shell_script_length = get_adjusted_length(self.queue_directory_name_len, time_sent, seed,
+                                                  email_subject, Defaults.EXT_SH)
+        if shell_script_length is None:
+            raise SendmailTryQueueError("cannot generate a suitable filename of size < %d" % self.queue_directory_name_len)
+
+        adjusted_length = min(email_subject_length, shell_script_length)
+
+        path_email_message = "{}-{}-{}{}".format(time_sent, email_subject[:adjusted_length],
+                                                 seed, Defaults.EXT_EML)
+        path_shell_script = "{}-{}-{}{}".format(time_sent, email_subject[:adjusted_length],
+                                                seed, Defaults.EXT_SH)
+
         path_email_message = path_root / path_email_message
         if len(str(path_email_message)) > self.queue_directory_max_path:
             raise SendmailTryQueueError("cannot generate a suitable filepath of size < %d"
                                         % self.queue_directory_max_path)
 
-        path_shell_script = generate_filename(
-                                 self.queue_directory_name_len,
-                                 time_sent, seed,
-                                 email_subject, Defaults.EXT_SH)
         path_shell_script = path_root / path_shell_script
         if len(str(path_shell_script)) > self.queue_directory_max_path:
             raise SendmailTryQueueError("cannot generate a suitable filepath of size < %d"
